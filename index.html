@@ -1,173 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Tiny's AI</title>
-<style>
-body { background: #121212; color: white; font-family: Arial; display:flex; justify-content:center; align-items:center; height:100vh; margin:0; }
-#container { width:620px; height:660px; background:#1e1e1e; border-radius:16px; display:flex; overflow:hidden; box-shadow:0 0 20px rgba(0,0,0,0.6);}
-#debugPanel { width:180px; background:#222; padding:10px; overflow-y:auto; display:none; border-right:2px solid #ff5722; color:#ffcc80; font-size:12px;}
-#chatContainer { flex:1; display:flex; flex-direction:column;}
-#header { background:linear-gradient(135deg,#2979ff,#00c6ff); padding:14px; text-align:center; font-size:20px; font-weight:bold; letter-spacing:1px;}
-#header span { font-size:14px; display:block; opacity:0.9;}
-#chat { flex:1; padding:12px; overflow-y:auto;}
-.bubble { padding:10px 14px; border-radius:14px; margin-bottom:8px; max-width:85%; line-height:1.4; white-space:pre-wrap;}
-.user { background:#2979ff; align-self:flex-end;}
-.ai { background:#333; align-self:flex-start; position:relative;}
-.ai span.name { font-weight:bold; font-size:12px; opacity:0.8; display:block; margin-bottom:4px;}
-#inputBar { display:flex; padding:10px; background:#181818;}
-#input { flex:1; border-radius:999px; border:none; padding:10px 14px; outline:none; font-size:14px;}
-button.sendBtn { margin-left:8px; border-radius:50%; border:none; width:36px; height:36px; cursor:pointer; background:#2979ff; color:white; font-size:16px;}
-#debugBtn { display:inline-block; padding:6px 16px; border-radius:12px; border:2px solid #ff5722; background:transparent; color:white; cursor:pointer; font-weight:bold; text-align:center; margin:8px auto;}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Math AI Chat</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-<div id="container">
-  <div id="debugPanel"></div>
-  <div id="chatContainer">
-    <div id="header">
-  Tiny’s AI
-  <span>Human-like Learning Chat</span>
-</div>
-    <div id="chat"></div>
-    <div id="inputBar">
-      <input id="input" placeholder="Type a message..." />
-      <button class="sendBtn" onclick="send()">➤</button>
+    <div class="chat-container">
+        <div id="chat-box" class="chat-box"></div>
+        <div class="input-area">
+            <input type="text" id="user-input" placeholder="Type your message...">
+            <button id="send-btn">Send</button>
+        </div>
     </div>
-    <button id="debugBtn" onclick="toggleDebug()">Debug</button>
-  </div>
-</div>
-
-<script>
-const chat = document.getElementById("chat");
-const input = document.getElementById("input");
-const debugPanel = document.getElementById("debugPanel");
-
-let memory = {
-    words: {},           // word -> weight
-    associations: {},    // word -> {relatedWord: weight}
-    greetings: 0
-};
-
-const ignoreWords=["i","you","he","she","it","we","they","the","a","an","is","are","do","did","does","how","what","why","when","where","okay","ok"];
-
-// ===== LEARN FUNCTION =====
-function learn(text){
-  const words = text.toLowerCase().split(/\W+/).filter(w=>w.length>2 && !ignoreWords.includes(w));
-  for(let i=0;i<words.length;i++){
-    const w = words[i];
-    memory.words[w] = (memory.words[w] || 0) + 1;
-    if(i>0){
-      const prev = words[i-1];
-      if(!memory.associations[prev]) memory.associations[prev]={};
-      memory.associations[prev][w] = (memory.associations[prev][w] || 0) + 0.5;
-    }
-  }
-}
-
-// ===== HELPERS =====
-function random(arr){return arr[Math.floor(Math.random()*arr.length)];}
-function isGreeting(text){return /^(hi|hello|hey|yo)\b/i.test(text);}
-function isQuestion(text){return text.endsWith("?")||/^(how|what|why|when|where)\b/i.test(text);}
-function pickTopic(){
-  const keys=Object.keys(memory.words).filter(w=>!ignoreWords.includes(w) && memory.words[w]>0);
-  return keys.length ? random(keys) : null;
-}
-
-// ===== OPEN COMMANDS =====
-async function handleOpen(text){
-  const t=text.toLowerCase();
-
-  // Wikipedia commands
-  if(t==="open wiki"){window.open("https://www.wikipedia.com/","_blank"); return "Opening Wikipedia…";}
-  if(t.startsWith("open wiki ")){const topic=text.slice(10).trim(); window.open("https://en.wikipedia.org/wiki/"+topic.replace(/ /g,"_"),"_blank"); return `I opened Wikipedia for "${topic}".`; }
-
-  // YouTube commands
-  if(t==="open youtube"){window.open("https://www.youtube.com/","_blank"); return "Opening YouTube…";}
-  if(t.startsWith("open youtube ")){const q=text.slice(13).replace(/ /g,"+"); window.open("https://www.youtube.com/results?search_query="+q,"_blank"); return `Searching YouTube for "${q.replace(/\+/g," ")}"...`; }
-
-  // Reddit commands
-  if(t==="open reddit"){ // Reddit homepage
-    window.open("https://www.reddit.com/","_blank");
-    try{
-      const res=await fetch(`https://www.reddit.com/.json?limit=10`);
-      if(res.ok){
-        const data=await res.json();
-        const titles=data.data.children.map(post=>post.data.title).join(". ");
-        learn(titles);
-        return `Opened Reddit homepage and learned new words.`;
-      }else{return `Opened Reddit but couldn't fetch posts.`;}
-    }catch(e){return `Opened Reddit, but fetch blocked by CORS.`;}
-  }
-  if(t.startsWith("open reddit ")){ // Specific subreddit
-    const subreddit=text.slice(12).trim();
-    window.open("https://www.reddit.com/r/"+subreddit,"_blank");
-    try{
-      const res=await fetch(`https://www.reddit.com/r/${subreddit}/top.json?limit=5`);
-      if(res.ok){
-        const data=await res.json();
-        const titles=data.data.children.map(post=>post.data.title).join(". ");
-        learn(titles);
-        return `I fetched top posts from r/${subreddit} and learned new words.`;
-      }else{return `Opened r/${subreddit} but couldn't fetch posts.`;}
-    }catch(e){return `Opened r/${subreddit}, but fetch blocked by CORS.`;}
-  }
-
-  return null;
-}
-
-// ===== AI RESPONSE =====
-function respond(text){
-  if(isGreeting(text)){memory.greetings++; return memory.greetings>1?"Hey again 🙂":"my maker told me not to say 'hello'";}
-  if(isQuestion(text)) return random(["That’s a good question.","Interesting — what do you think?","I’m thinking about that.","Let me think for a second."]);
-
-  const topicWords = Object.keys(memory.words).sort((a,b)=>memory.words[b]-memory.words[a]);
-  const topic = topicWords.length ? topicWords[0] : null;
-
-  if(topic && memory.associations[topic]){
-    const related = Object.keys(memory.associations[topic]);
-    const relatedWord = related.length ? random(related) : '';
-    return `Earlier you mentioned "${topic}". It reminds me of "${relatedWord}". Tell me more.`;
-  }
-
-  return random(["That’s interesting. Tell me more.","I see. Go on.","Hmm… I’m listening."]);
-}
-
-// ===== UI =====
-function add(text,who,typing=false){
-  const div=document.createElement("div"); div.className="bubble "+who;
-  if(who==="ai"){const nameSpan=document.createElement("span"); nameSpan.className="name"; nameSpan.textContent="ML AI:"; div.appendChild(nameSpan);}
-  chat.appendChild(div); chat.scrollTop=chat.scrollHeight;
-  if(typing){let i=0; const interval=setInterval(()=>{
-    div.textContent=div.textContent.split("\n")[0];
-    const nameLabel=document.createElement("span"); nameLabel.className="name"; nameLabel.textContent="ML AI:"; div.innerHTML=""; div.appendChild(nameLabel);
-    div.appendChild(document.createTextNode(text.substring(0,i))); chat.scrollTop=chat.scrollHeight; i++; if(i>text.length) clearInterval(interval);
-  },25);} else div.appendChild(document.createTextNode(text));
-}
-
-// ===== SEND =====
-async function send(){
-  const text=input.value.trim(); if(!text) return; input.value="";
-  add(text,"user"); learn(text);
-  setTimeout(async()=>{const openResult=await handleOpen(text); if(openResult) add(openResult,"ai",true); else add(respond(text),"ai",true); updateDebug();},300);
-}
-
-// ===== ENTER KEY =====
-input.addEventListener("keydown",function(event){if(event.key==="Enter"){event.preventDefault();send();}});
-
-// ===== DEBUG PANEL =====
-function toggleDebug(){debugPanel.style.display=debugPanel.style.display==="none"?"block":"none"; updateDebug();}
-function updateDebug(){debugPanel.innerHTML="<h3>Debug Info</h3><strong>Greetings count:</strong> "+memory.greetings+"<br><br><strong>Topics learned:</strong><br>"+JSON.stringify(memory.words,null,2).replace(/,/g,",<br>").replace(/["{}]/g,"");}
-
-// ===== START MESSAGE =====
-add(`Hello! I’m ML AI
-I can learn from conversation, adapt my replies, and gather limited knowledge from YouTube and Reddit and wikipedia.
-
-Try:
-• open wiki python
-• open youtube cats
-• open reddit programming`,"ai",true);
-</script>
+    <script src="ai.js"></script>
 </body>
 </html>
